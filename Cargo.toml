@@ -1,0 +1,18 @@
+[package]
+name = "mario-particles"
+version = "0.1.0"
+edition = "2021"
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+
+[dependencies]
+bevy = "0.10.1"
+inline_tweak = "1.0.9"
+
+[features]
+default = ["dev"]
+dev = ["bevy/dynamic_linking"]
