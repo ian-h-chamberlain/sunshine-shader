@@ -1,9 +1,15 @@
+use bevy::log;
+use bevy::pbr::ExtendedMaterial;
 use bevy::prelude::*;
+use bevy::scene::SceneInstance;
 use inline_tweak::tweak;
+use noisy::NoisyVertMaterial;
+
+mod noisy;
 
 fn main() {
     App::new()
-        .insert_resource(Msaa::Sample4)
+        .insert_resource(Msaa::Sample8)
         .insert_resource(ClearColor(Color::GRAY))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -12,9 +18,11 @@ fn main() {
             }),
             ..default()
         }))
+        .add_plugin(MaterialPlugin::<ExtendedMaterial<NoisyVertMaterial>>::default())
         .add_startup_system(setup)
-        // .add_startup_system(setup_debug)
+        .add_system(set_custom_material)
         .add_system(rotate_model)
+        .add_system(animate_model)
         .run();
 }
 
@@ -55,11 +63,74 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         Colette,
+        CustomMaterial,
     ));
+}
+
+#[derive(Component, Debug, Clone)]
+struct CustomMaterial;
+
+fn set_custom_material(
+    mut commands: Commands,
+    scenes: Query<(Entity, &SceneInstance), With<CustomMaterial>>,
+    materials: Query<(Entity, &Handle<StandardMaterial>)>,
+    scene_manager: Res<SceneSpawner>,
+    mut standard_mats: ResMut<Assets<StandardMaterial>>,
+    mut noisy_mats: ResMut<Assets<ExtendedMaterial<NoisyVertMaterial>>>,
+) {
+    for (entity, instance) in &scenes {
+        if !scene_manager.instance_is_ready(**instance) {
+            log::debug!("scene instance {entity:?} not spawned yet");
+            continue;
+        }
+
+        // Based on https://github.com/bevyengine/bevy/discussions/8533
+        for scene_ent in scene_manager.iter_instance_entities(**instance) {
+            let Ok((ent, standard_mat)) = materials.get(scene_ent) else { continue };
+            let Some(standard) = standard_mats.remove(standard_mat) else { continue };
+
+            // hmm, this part could probably be done at startup, idk though
+            let noisy_mat = noisy_mats.add(ExtendedMaterial {
+                standard,
+                extended: NoisyVertMaterial::default(),
+            });
+
+            log::debug!("updating {ent:?} material to {noisy_mat:?}");
+
+            commands
+                .entity(ent)
+                .remove::<Handle<StandardMaterial>>()
+                .insert(noisy_mat);
+        }
+
+        log::info!("scene {entity:?} custom material set, removing marker component");
+        commands.entity(entity).remove::<CustomMaterial>();
+    }
 }
 
 fn rotate_model(time: Res<Time>, mut query: Query<&mut Transform, With<Colette>>) {
     for mut model in &mut query {
         model.rotate_y(tweak!(1.5) * time.delta_seconds());
     }
+}
+
+fn animate_model() {
+    // TODO: add UI button to play animation or something?
+
+    // First half:
+    //  - apply material with noisy vertex shader
+
+    // Second half:
+    //  - explode into blobs
+    //      - SDF spheres? or just a basic billboard type particle
+    //      - possibly implemented with a more typical particle system in the real
+    //        game, but let's try with a shader just to see if it's feasible
+    //
+    //  - explosion particle effect itself. TBD what this would look like
+    //
+    //  - move offscreen
+
+    // Spawn in:
+    //  - drop in from top while spinning (spherical blob shape)
+    //  - reformulate into full sprite over time
 }
