@@ -11,12 +11,19 @@ use bevy::{log, prelude::*};
 pub struct NoisyVertMaterial {
     /// How far (at most) offset vertices should be (in ??? units)
     #[uniform(100)]
-    pub noise_level: f32,
+    pub noise_magnitude: f32,
+
+    /// The scale of the noize
+    #[uniform(101)]
+    pub noise_scale: f32,
 }
 
 impl NoisyVertMaterial {
-    pub fn new(noise_level: f32) -> Self {
-        Self { noise_level }
+    pub fn new(noise_magnitude: f32, noise_scale: f32) -> Self {
+        Self {
+            noise_magnitude,
+            noise_scale,
+        }
     }
 }
 

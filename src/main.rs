@@ -75,7 +75,7 @@ fn set_custom_material(
     scenes: Query<(Entity, &SceneInstance), With<CustomMaterial>>,
     materials: Query<(Entity, &Handle<StandardMaterial>)>,
     scene_manager: Res<SceneSpawner>,
-    mut standard_mats: ResMut<Assets<StandardMaterial>>,
+    standard_mats: Res<Assets<StandardMaterial>>,
     mut noisy_mats: ResMut<Assets<ExtendedMaterial<NoisyVertMaterial>>>,
 ) {
     for (entity, instance) in &scenes {
@@ -87,11 +87,11 @@ fn set_custom_material(
         // Based on https://github.com/bevyengine/bevy/discussions/8533
         for scene_ent in scene_manager.iter_instance_entities(**instance) {
             let Ok((ent, standard_mat)) = materials.get(scene_ent) else { continue };
-            let Some(standard) = standard_mats.remove(standard_mat) else { continue };
+            let Some(standard) = standard_mats.get(standard_mat) else { continue };
 
             // hmm, this part could probably be done at startup, idk though
             let noisy_mat = noisy_mats.add(ExtendedMaterial {
-                standard,
+                standard: standard.clone(),
                 extended: NoisyVertMaterial::default(),
             });
 
@@ -114,7 +114,18 @@ fn rotate_model(time: Res<Time>, mut query: Query<&mut Transform, With<Colette>>
     }
 }
 
-fn animate_model() {
+fn animate_model(
+    material_handles: Query<&Handle<ExtendedMaterial<NoisyVertMaterial>>>,
+    mut materials: ResMut<Assets<ExtendedMaterial<NoisyVertMaterial>>>,
+) {
+    for handle in &material_handles {
+        let Some(material) = materials.get_mut(handle) else { continue };
+
+        // TODO: bevy_inspector_egui would probably be nice for these
+        material.extended.noise_magnitude = tweak!(0.25);
+        material.extended.noise_scale = tweak!(75.0);
+    }
+
     // TODO: add UI button to play animation or something?
 
     // First half:
