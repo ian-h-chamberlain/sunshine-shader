@@ -6,7 +6,7 @@ use bevy::render::render_resource::{
 };
 use bevy::{log, prelude::*};
 
-#[derive(AsBindGroup, TypeUuid, Debug, Clone, Default)]
+#[derive(AsBindGroup, TypeUuid, Debug, Clone)]
 #[uuid = "eee72aef-5111-4307-a571-191b80a73dbe"]
 pub struct NoisyVertMaterial {
     /// How far (at most) offset vertices should be (in ??? units)
@@ -16,13 +16,18 @@ pub struct NoisyVertMaterial {
     /// The scale of the noize
     #[uniform(101)]
     pub noise_scale: f32,
+
+    /// The speed at which the shader should animate
+    #[uniform(102)]
+    pub time_scale: f32,
 }
 
-impl NoisyVertMaterial {
-    pub fn new(noise_magnitude: f32, noise_scale: f32) -> Self {
+impl Default for NoisyVertMaterial {
+    fn default() -> Self {
         Self {
-            noise_magnitude,
-            noise_scale,
+            noise_magnitude: 1.0,
+            noise_scale: 1.0,
+            time_scale: 1.0,
         }
     }
 }

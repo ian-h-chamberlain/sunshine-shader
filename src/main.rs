@@ -1,3 +1,4 @@
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::log;
 use bevy::pbr::ExtendedMaterial;
 use bevy::prelude::*;
@@ -8,8 +9,9 @@ use noisy::NoisyVertMaterial;
 mod noisy;
 
 fn main() {
-    App::new()
-        .insert_resource(Msaa::Sample8)
+    let mut app = App::new();
+
+    app.insert_resource(Msaa::Sample8)
         .insert_resource(ClearColor(Color::GRAY))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -18,12 +20,17 @@ fn main() {
             }),
             ..default()
         }))
+        .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(MaterialPlugin::<ExtendedMaterial<NoisyVertMaterial>>::default())
         .add_startup_system(setup)
         .add_system(set_custom_material)
         .add_system(rotate_model)
-        .add_system(animate_model)
-        .run();
+        .add_system(animate_model);
+
+    // #[cfg(debug_assertions)]
+
+    app.run();
 }
 
 #[derive(Component)]
@@ -122,8 +129,9 @@ fn animate_model(
         let Some(material) = materials.get_mut(handle) else { continue };
 
         // TODO: bevy_inspector_egui would probably be nice for these
-        material.extended.noise_magnitude = tweak!(0.25);
-        material.extended.noise_scale = tweak!(75.0);
+        material.extended.noise_magnitude = tweak!(0.05);
+        material.extended.noise_scale = tweak!(100.0);
+        material.extended.time_scale = tweak!(4.0);
     }
 
     // TODO: add UI button to play animation or something?
