@@ -6,7 +6,7 @@
 // NOTE: Bindings must come before functions that use them!
 #import bevy_pbr::mesh_functions
 
-#import "shaders/perlin.wgsl"
+#import "shaders/noise.wgsl"
 
 @group(1) @binding(100)
 var<uniform> noise_magnitude: f32;
