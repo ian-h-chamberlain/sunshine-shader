@@ -42,6 +42,7 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     // TODO: noise offset, or abs(snoise(...)) ? It might be nice to avoid pushing verts
     // in away since this sometimes causes a weird overlap effect that doesn't look super pretty
 
+    // alternatively, we could probably do noise3() using UV + time, but this feels like more fun
     var offset = noise_magnitude * snoise(noise_sample);
     // TODO: random direction instead of normal? It actually looks decent like this already!
     world_position += vec4(offset * world_normal, 0.0);
