@@ -1,4 +1,4 @@
-use bevy::pbr::{MaterialPipeline, MaterialPipelineKey};
+use bevy::pbr::{ExtendedMaterial, MaterialPipeline, MaterialPipelineKey};
 use bevy::reflect::TypeUuid;
 use bevy::render::mesh::MeshVertexBufferLayout;
 use bevy::render::render_resource::{
@@ -6,9 +6,11 @@ use bevy::render::render_resource::{
 };
 use bevy::{log, prelude::*};
 
+pub type NoisyVertsMaterial = ExtendedMaterial<NoisyVerts>;
+
 #[derive(AsBindGroup, TypeUuid, Debug, Clone)]
 #[uuid = "eee72aef-5111-4307-a571-191b80a73dbe"]
-pub struct NoisyVertMaterial {
+pub struct NoisyVerts {
     /// How far (at most) offset vertices should be (in ??? units)
     #[uniform(100)]
     pub noise_magnitude: f32,
@@ -22,7 +24,7 @@ pub struct NoisyVertMaterial {
     pub time_scale: f32,
 }
 
-impl Default for NoisyVertMaterial {
+impl Default for NoisyVerts {
     fn default() -> Self {
         Self {
             noise_magnitude: 1.0,
@@ -32,9 +34,9 @@ impl Default for NoisyVertMaterial {
     }
 }
 
-impl Material for NoisyVertMaterial {
+impl Material for NoisyVerts {
     fn vertex_shader() -> ShaderRef {
-        "shaders/noisy_vert.wgsl".into()
+        "shaders/noisy_verts.wgsl".into()
     }
 
     fn specialize(

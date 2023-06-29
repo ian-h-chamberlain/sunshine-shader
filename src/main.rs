@@ -1,18 +1,25 @@
+use bevy::asset::HandleId;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::log;
 use bevy::pbr::ExtendedMaterial;
 use bevy::prelude::*;
+use bevy::reflect::TypeUuid;
 use bevy::scene::SceneInstance;
+use bevy::utils::HashMap;
 use inline_tweak::tweak;
-use noisy::NoisyVertMaterial;
 
+mod bubbles;
 mod noisy;
+
+use bubbles::BubblesMaterial;
+use noisy::NoisyVertsMaterial;
 
 fn main() {
     let mut app = App::new();
 
     app.insert_resource(Msaa::Sample8)
         .insert_resource(ClearColor(Color::GRAY))
+        .init_resource::<Materials>()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 resolution: (1024.0, 768.0).into(),
@@ -22,15 +29,22 @@ fn main() {
         }))
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(MaterialPlugin::<ExtendedMaterial<NoisyVertMaterial>>::default())
+        .add_plugin(MaterialPlugin::<NoisyVertsMaterial>::default())
+        .add_plugin(MaterialPlugin::<BubblesMaterial>::default())
         .add_startup_system(setup)
+        .add_system(initialize_materials)
         .add_system(set_custom_material)
         .add_system(rotate_model)
-        .add_system(animate_model);
+        .add_system(animate_noise)
+        .add_system(animate_bubbles)
+        // GO!
+        .run();
+}
 
-    // #[cfg(debug_assertions)]
-
-    app.run();
+#[derive(Resource, Debug, Default)]
+struct Materials {
+    bubbles: HashMap<HandleId, Handle<BubblesMaterial>>,
+    noisy: HashMap<HandleId, Handle<NoisyVertsMaterial>>,
 }
 
 #[derive(Component)]
@@ -74,16 +88,50 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 }
 
-#[derive(Component, Debug, Clone)]
+#[derive(Component)]
 struct CustomMaterial;
+
+fn initialize_materials(
+    standard: Res<Assets<StandardMaterial>>,
+    mut bubbles: ResMut<Assets<BubblesMaterial>>,
+    mut noisy_mats: ResMut<Assets<NoisyVertsMaterial>>,
+    mut materials: ResMut<Materials>,
+) {
+    // only need to rerun this whenever new standard materials are added
+    if !standard.is_changed() {
+        return;
+    }
+
+    log::debug!(
+        "got {} materials to copy into custom materials",
+        standard.len()
+    );
+
+    for (id, standard) in standard.iter() {
+        materials.bubbles.entry(id).or_insert_with(|| {
+            bubbles.add(BubblesMaterial {
+                standard: standard.clone(),
+                extended: default(),
+            })
+        });
+
+        materials.noisy.entry(id).or_insert_with(|| {
+            noisy_mats.add(NoisyVertsMaterial {
+                standard: standard.clone(),
+                extended: default(),
+            })
+        });
+
+        log::debug!("created entries for {id:?}");
+    }
+}
 
 fn set_custom_material(
     mut commands: Commands,
-    scenes: Query<(Entity, &SceneInstance), With<CustomMaterial>>,
-    materials: Query<(Entity, &Handle<StandardMaterial>)>,
+    scenes: Query<(Entity, &SceneInstance), With<Colette>>,
+    ent_materials: Query<(Entity, &Handle<StandardMaterial>)>,
     scene_manager: Res<SceneSpawner>,
-    standard_mats: Res<Assets<StandardMaterial>>,
-    mut noisy_mats: ResMut<Assets<ExtendedMaterial<NoisyVertMaterial>>>,
+    materials: Res<Materials>,
 ) {
     for (entity, instance) in &scenes {
         if !scene_manager.instance_is_ready(**instance) {
@@ -93,25 +141,18 @@ fn set_custom_material(
 
         // Based on https://github.com/bevyengine/bevy/discussions/8533
         for scene_ent in scene_manager.iter_instance_entities(**instance) {
-            let Ok((ent, standard_mat)) = materials.get(scene_ent) else { continue };
-            let Some(standard) = standard_mats.get(standard_mat) else { continue };
+            let Ok((ent, standard_mat)) = ent_materials.get(scene_ent) else { continue };
 
-            // hmm, this part could probably be done at startup, idk though
-            let noisy_mat = noisy_mats.add(ExtendedMaterial {
-                standard: standard.clone(),
-                extended: NoisyVertMaterial::default(),
-            });
+            // start off with the default noisy material
+            let Some(noisy_mat) = materials.noisy.get(&standard_mat.id()) else { continue };
 
             log::debug!("updating {ent:?} material to {noisy_mat:?}");
 
             commands
                 .entity(ent)
                 .remove::<Handle<StandardMaterial>>()
-                .insert(noisy_mat);
+                .insert(noisy_mat.clone());
         }
-
-        log::info!("scene {entity:?} custom material set, removing marker component");
-        commands.entity(entity).remove::<CustomMaterial>();
     }
 }
 
@@ -121,35 +162,43 @@ fn rotate_model(time: Res<Time>, mut query: Query<&mut Transform, With<Colette>>
     }
 }
 
-fn animate_model(
-    material_handles: Query<&Handle<ExtendedMaterial<NoisyVertMaterial>>>,
-    mut materials: ResMut<Assets<ExtendedMaterial<NoisyVertMaterial>>>,
+// First half of the animation: apply material with noisy vertex shader
+fn animate_noise(
+    material_handles: Query<&Handle<NoisyVertsMaterial>>,
+    mut materials: ResMut<Assets<NoisyVertsMaterial>>,
+) {
+    // TODO: add UI button to play animation or something?
+
+    for handle in &material_handles {
+        let Some(material) = materials.get_mut(handle) else { continue };
+
+        // TODO: bevy_inspector_egui would probably be nice for these
+        material.extended.noise_magnitude = tweak!(0.15);
+        material.extended.noise_scale = tweak!(60.0);
+        material.extended.time_scale = tweak!(4.0);
+    }
+}
+
+// Second half:
+//  - explode into blobs
+//      - SDF spheres? or just a basic billboard type particle
+//      - possibly implemented with a more typical particle system in the real
+//        game, but let's try with a shader just to see if it's feasible
+//
+fn animate_bubbles(
+    material_handles: Query<&Handle<BubblesMaterial>>,
+    mut materials: ResMut<Assets<BubblesMaterial>>,
 ) {
     for handle in &material_handles {
         let Some(material) = materials.get_mut(handle) else { continue };
 
         // TODO: bevy_inspector_egui would probably be nice for these
-        material.extended.noise_magnitude = tweak!(0.05);
-        material.extended.noise_scale = tweak!(100.0);
-        material.extended.time_scale = tweak!(4.0);
+        material.extended.bubble_radius = tweak!(1.0);
     }
-
-    // TODO: add UI button to play animation or something?
-
-    // First half:
-    //  - apply material with noisy vertex shader
-
-    // Second half:
-    //  - explode into blobs
-    //      - SDF spheres? or just a basic billboard type particle
-    //      - possibly implemented with a more typical particle system in the real
-    //        game, but let's try with a shader just to see if it's feasible
-    //
-    //  - explosion particle effect itself. TBD what this would look like
-    //
-    //  - move offscreen
-
-    // Spawn in:
-    //  - drop in from top while spinning (spherical blob shape)
-    //  - reformulate into full sprite over time
 }
+
+// TODO:
+//  - explosion particle effect itself. TBD what this would look like
+//  - move offscreen
+//  - drop in from top while spinning (spherical blob shape)
+//  - reconstitute into full sprite over time
