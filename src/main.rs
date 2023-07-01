@@ -2,12 +2,11 @@ use bevy::asset::HandleId;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::log;
 use bevy::prelude::*;
-use bevy::render::mesh::VertexAttributeValues;
-use bevy::render::render_resource::PrimitiveTopology;
+use bevy::render::renderer::RenderDevice;
+use bevy::render::settings::WgpuFeatures;
 use bevy::scene::SceneInstance;
 use bevy::utils::HashMap;
 use inline_tweak::tweak;
-use itertools::Itertools;
 
 mod bubbles;
 mod noisy;
@@ -15,10 +14,26 @@ mod noisy;
 use bubbles::BubblesMaterial;
 use noisy::NoisyVertsMaterial;
 
-use crate::bubbles::ATTRIBUTE_TRIANGLE_CENTROID;
+use self::bubbles::BubblesMaterialPlugin;
 
 fn main() {
     let mut app = App::new();
+
+    let render_device = app.world.resource::<RenderDevice>();
+
+    // damn, seems like a web demo with this is probably not viable, since this feature is
+    // listed as native-only. :(
+    if !render_device
+        .features()
+        .contains(WgpuFeatures::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING)
+    {
+        error!(
+            "Render device doesn't support feature \
+            SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING, \
+            which is required for texture binding arrays"
+        );
+        return;
+    }
 
     app.insert_resource(Msaa::Sample8)
         .insert_resource(ClearColor(Color::GRAY))
@@ -30,10 +45,10 @@ fn main() {
             }),
             ..default()
         }))
+        .add_plugin(BubblesMaterialPlugin)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(MaterialPlugin::<NoisyVertsMaterial>::default())
-        .add_plugin(MaterialPlugin::<BubblesMaterial>::default())
         .add_startup_system(setup)
         .add_system(initialize_materials)
         .add_system(set_custom_material)
@@ -134,7 +149,6 @@ fn set_custom_material(
     ent_materials: Query<(Entity, &Handle<StandardMaterial>, &Handle<Mesh>)>,
     scene_manager: Res<SceneSpawner>,
     materials: Res<Materials>,
-    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     for (entity, instance) in &scenes {
         if !scene_manager.instance_is_ready(**instance) {
@@ -148,9 +162,6 @@ fn set_custom_material(
 
             let Some(bubble_mat) = materials.bubbles.get(&standard_mat.id()) else { continue };
 
-            let mesh = meshes.get_mut(mesh).unwrap();
-            calculate_triangle_centroids(mesh);
-
             log::debug!("updating {ent:?} material to {bubble_mat:?}");
 
             commands
@@ -159,55 +170,6 @@ fn set_custom_material(
                 .insert(bubble_mat.clone());
         }
     }
-}
-
-fn calculate_triangle_centroids(mesh: &mut Mesh) {
-    if mesh.contains_attribute(ATTRIBUTE_TRIANGLE_CENTROID) {
-        log::debug!("already calculated centroids for {mesh:?}, skipping");
-        return;
-    }
-
-    let indices = mesh.indices().unwrap();
-    let position_attr = mesh.attribute(Mesh::ATTRIBUTE_POSITION).unwrap();
-
-    log::debug!(
-        "got {} indices, {} vertices",
-        indices.len(),
-        mesh.count_vertices()
-    );
-
-    let VertexAttributeValues::Float32x3(positions) = position_attr
-    else {
-        log::error!("expected Float32x3 for positions, got {:?}", position_attr.enum_variant_name());
-        return;
-    };
-
-    if mesh.primitive_topology() != PrimitiveTopology::TriangleList {
-        log::debug!("skipping mesh for topology {:?}", mesh.primitive_topology());
-    }
-
-    let mut centroids: Vec<[f32; 3]> = vec![[0.0; 3]; positions.len()];
-
-    let mut tris = 0;
-    for chunk in &indices.iter().chunks(3) {
-        tris += 1;
-        let tri_indices: Vec<_> = chunk.collect();
-
-        let centroid = tri_indices
-            .iter()
-            .map(|&idx| Vec3::from(positions[idx]))
-            .sum::<Vec3>()
-            / tri_indices.len() as f32;
-
-        // This is probably not ideal, the centroid's being duplicated for each vert
-        for idx in tri_indices {
-            centroids[idx] = centroid.into();
-        }
-    }
-
-    log::debug!("got {} centroids for {tris} tris", centroids.len());
-
-    mesh.insert_attribute(ATTRIBUTE_TRIANGLE_CENTROID, centroids);
 }
 
 fn rotate_model(time: Res<Time>, mut query: Query<&mut Transform, With<Colette>>) {
