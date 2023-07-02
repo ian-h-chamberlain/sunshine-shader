@@ -4,6 +4,7 @@ use bevy::log;
 use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::settings::WgpuFeatures;
+use bevy::render::view::NoFrustumCulling;
 use bevy::scene::SceneInstance;
 use bevy::utils::HashMap;
 use inline_tweak::tweak;
@@ -18,6 +19,20 @@ use self::bubbles::BubblesMaterialPlugin;
 
 fn main() {
     let mut app = App::new();
+    app.add_plugins(
+        DefaultPlugins
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    resolution: (800.0, 600.0).into(),
+                    ..default()
+                }),
+                ..default()
+            })
+            .set(AssetPlugin {
+                watch_for_changes: true,
+                ..default()
+            }),
+    );
 
     let render_device = app.world.resource::<RenderDevice>();
 
@@ -38,13 +53,6 @@ fn main() {
     app.insert_resource(Msaa::Sample8)
         .insert_resource(ClearColor(Color::GRAY))
         .init_resource::<Materials>()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                resolution: (1024.0, 768.0).into(),
-                ..default()
-            }),
-            ..default()
-        }))
         .add_plugin(BubblesMaterialPlugin)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
@@ -70,7 +78,7 @@ struct Colette;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(2.0, 1.5, -4.0)
+        transform: Transform::from_xyz(2.0, 1.5, -2.0)
             .looking_at(Vec3::new(0.0, 0.75, 0.0), Vec3::Y),
         ..default()
     });
@@ -102,12 +110,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         },
         Colette,
-        CustomMaterial,
+        UseCustomMaterial,
+        NoFrustumCulling,
     ));
 }
 
 #[derive(Component)]
-struct CustomMaterial;
+struct UseCustomMaterial;
 
 fn initialize_materials(
     standard: Res<Assets<StandardMaterial>>,
@@ -129,7 +138,7 @@ fn initialize_materials(
         materials.bubbles.entry(id).or_insert_with(|| {
             log::debug!("creating bubbles mat for for {id:?}");
 
-            bubbles.add(bubbles::from_standard_material(standard.clone()))
+            bubbles.add(bubbles::material_from_standard(standard.clone()))
         });
 
         materials.noisy.entry(id).or_insert_with(|| {
