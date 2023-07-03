@@ -6,7 +6,7 @@ use bevy::ecs::query::ROQueryItem;
 use bevy::ecs::system::{lifetimeless::*, SystemParamItem};
 use bevy::pbr::{
     MaterialPipeline, MaterialPipelineKey, MeshPipeline, MeshPipelineKey, MeshUniform,
-    RenderMaterials, SetMeshBindGroup, SetMeshViewBindGroup,
+    RenderMaterials, SetMaterialBindGroup, SetMeshBindGroup, SetMeshViewBindGroup,
 };
 use bevy::render::extract_component::DynamicUniformIndex;
 use bevy::render::mesh::{GpuBufferInfo, MeshVertexBufferLayout};
@@ -20,14 +20,15 @@ use bevy::render::render_resource::{
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ExtractedView;
 use bevy::{log, prelude::*};
+use inline_tweak::tweak;
 
 use super::BubblesMaterial;
 
 pub type DrawCustom = (
     SetItemPipeline,
     SetMeshViewBindGroup<0>,
-    // SetMaterialBindGroup<BubblesMaterial, 1>, // skipped because we set the bind group in `Draw`
-    SetMeshBindGroup<2>, // we pass our own quad mesh data instead
+    SetMaterialBindGroup<BubblesMaterial, 1>, // skipped because we set the bind group in `Draw`
+    SetMeshBindGroup<2>,
     DrawBubblesMaterial,
 );
 
@@ -91,16 +92,12 @@ impl<P: PhaseItem> RenderCommand<P> for DrawBubblesMaterial {
 
     type ViewWorldQuery = ();
 
-    type ItemWorldQuery = (
-        Read<Handle<Mesh>>,
-        Read<Handle<BubblesMaterial>>,
-        Read<DynamicUniformIndex<MeshUniform>>,
-    );
+    type ItemWorldQuery = (Read<Handle<Mesh>>, Read<Handle<BubblesMaterial>>);
 
     fn render<'w>(
         _item: &P,
         _view: (),
-        (mesh_handle, material_handle, mesh_uniform): ROQueryItem<'_, Self::ItemWorldQuery>,
+        (mesh_handle, material_handle): ROQueryItem<'_, Self::ItemWorldQuery>,
         (meshes, prepared_materials): SystemParamItem<'w, '_, Self::Param>,
         pass: &mut TrackedRenderPass<'w>,
     ) -> RenderCommandResult {
@@ -109,31 +106,24 @@ impl<P: PhaseItem> RenderCommand<P> for DrawBubblesMaterial {
             meshes.into_inner().get(mesh_handle),
         ) else { return RenderCommandResult::Failure };
 
-        let Some((_ , OwnedBindingResource::Buffer(buf))) = prepared_material
+        let Some((_ , OwnedBindingResource::Buffer(quad_vertex_buffer))) = prepared_material
             .bindings
             .iter()
             .find(|(binding, _)| *binding == 102)
         else { return RenderCommandResult::Failure };
 
-        // pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-        pass.set_vertex_buffer(0, buf.slice(..));
+        pass.set_vertex_buffer(0, quad_vertex_buffer.slice(..));
 
-        // StandardMaterial normally sets bind group 1
-        pass.set_bind_group(1, &prepared_material.bind_group, &[]);
+        let instance_count = match &mesh.buffer_info {
+            GpuBufferInfo::Indexed { count, .. } => *count,
+            GpuBufferInfo::NonIndexed { vertex_count } => *vertex_count,
+        };
 
-        match &mesh.buffer_info {
-            GpuBufferInfo::Indexed {
-                buffer,
-                count,
-                index_format,
-            } => {
-                pass.set_index_buffer(buffer.slice(..), 0, *index_format);
-                pass.draw_indexed(0..6, 0, 0..*count);
-            }
-            GpuBufferInfo::NonIndexed { vertex_count } => {
-                pass.draw(0..6, 0..*vertex_count);
-            }
-        }
+        // we know the quad buffer is non-indexed with fixed number of verts,
+        // draw it directly. clamp the instance count for performance, but
+        // ideally we really ought to be skipping a bunch of tris to trim this
+        // down *before* sending to the GPU. Maybe extraction could do that
+        pass.draw(0..6, 0..instance_count.min(tweak!(200)));
 
         RenderCommandResult::Success
     }

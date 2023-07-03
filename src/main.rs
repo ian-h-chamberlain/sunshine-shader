@@ -2,6 +2,7 @@ use bevy::asset::HandleId;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::log;
 use bevy::prelude::*;
+use bevy::render::mesh::VertexAttributeValues;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::settings::WgpuFeatures;
 use bevy::render::view::NoFrustumCulling;
@@ -156,6 +157,7 @@ fn set_custom_material(
     mut commands: Commands,
     scenes: Query<(Entity, &SceneInstance), With<Colette>>,
     ent_materials: Query<(Entity, &Handle<StandardMaterial>, &Handle<Mesh>)>,
+    meshes: Res<Assets<Mesh>>,
     scene_manager: Res<SceneSpawner>,
     materials: Res<Materials>,
 ) {
@@ -167,9 +169,40 @@ fn set_custom_material(
 
         // Based on https://github.com/bevyengine/bevy/discussions/8533
         for scene_ent in scene_manager.iter_instance_entities(**instance) {
-            let Ok((ent, standard_mat, mesh)) = ent_materials.get(scene_ent) else { continue };
+            let Ok((ent, standard_mat, mesh_handle)) = ent_materials.get(scene_ent) else { continue };
+
+            let Some(mesh) = meshes.get(mesh_handle)
+            else {
+                log::error!("mesh not found {mesh_handle:?}");
+                continue;
+            };
+
+            let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+            else {
+                log::error!("no mesh positions found");
+                return;
+            };
+
+            let colors: String = positions[..positions.len().min(36)]
+                .iter()
+                .skip(1)
+                .step_by(3)
+                .map(|&[r, g, b]| {
+                    let (r, g, b) = (r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0));
+                    format!(
+                        "  rgb({}, {}, {}) {:?}\n",
+                        (255.0 * r) as u8,
+                        (255.0 * g) as u8,
+                        (255.0 * b) as u8,
+                        [r, g, b]
+                    )
+                })
+                .collect();
+
+            log::debug!("First several positions:\n{colors}");
 
             let Some(bubble_mat) = materials.bubbles.get(&standard_mat.id()) else { continue };
+            let Some(noisy_mat) = materials.noisy.get(&standard_mat.id()) else { continue };
 
             log::debug!("updating {ent:?} material to {bubble_mat:?}");
 
@@ -183,7 +216,7 @@ fn set_custom_material(
 
 fn rotate_model(time: Res<Time>, mut query: Query<&mut Transform, With<Colette>>) {
     for mut model in &mut query {
-        model.rotate_y(tweak!(0.75) * time.delta_seconds());
+        model.rotate_y(tweak!(0.25) * time.delta_seconds());
     }
 }
 
@@ -218,7 +251,7 @@ fn animate_bubbles(
         let Some(material) = materials.get_mut(handle) else { continue };
 
         // TODO: bevy_inspector_egui would probably be nice for these
-        material.extended.bubble_radius = tweak!(0.5);
+        material.extended.bubble_radius = tweak!(0.03);
     }
 }
 
