@@ -1,10 +1,11 @@
+use bevy::log;
 use bevy::pbr::{ExtendedMaterial, MaterialPipeline, MaterialPipelineKey};
+use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
 use bevy::render::mesh::MeshVertexBufferLayout;
 use bevy::render::render_resource::{
     AsBindGroup, RenderPipelineDescriptor, ShaderRef, SpecializedMeshPipelineError,
 };
-use bevy::{log, prelude::*};
 
 pub type NoisyVertsMaterial = ExtendedMaterial<NoisyVerts>;
 

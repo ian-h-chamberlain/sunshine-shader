@@ -3,32 +3,24 @@ use std::sync::Once;
 
 use bevy::core::{Pod, Zeroable};
 use bevy::core_pipeline::core_3d::Transparent3d;
-use bevy::ecs::query::QueryItem;
-use bevy::ecs::system::lifetimeless::{Read, SRes};
-use bevy::ecs::system::SystemParamItem;
 use bevy::log;
 use bevy::pbr::{
     extract_materials, prepare_materials, queue_material_meshes, ExtendedMaterial,
-    ExtractedMaterials, MaterialPipeline, MaterialPipelineKey, PrepassPlugin, RenderMaterials,
+    ExtractedMaterials, MaterialPipeline, MaterialPipelineKey, RenderMaterials,
 };
 use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
-use bevy::render::extract_component::{ExtractComponent, ExtractComponentPlugin};
-use bevy::render::mesh::{GpuBufferInfo, GpuMesh, MeshVertexBufferLayout, VertexAttributeValues};
-use bevy::render::render_asset::{
-    prepare_assets, ExtractedAssets, PrepareAssetError, PrepareAssetSet, RenderAsset, RenderAssets,
-};
+use bevy::render::extract_component::ExtractComponentPlugin;
+use bevy::render::mesh::MeshVertexBufferLayout;
+use bevy::render::render_asset::{prepare_assets, PrepareAssetSet, RenderAsset};
 use bevy::render::render_phase::AddRenderCommand;
 use bevy::render::render_resource::{
-    AsBindGroup, AsBindGroupError, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
-    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType,
-    BufferDescriptor, BufferInitDescriptor, BufferUsages, OwnedBindingResource,
-    RawVertexBufferLayout, RenderPipelineDescriptor, ShaderRef, ShaderType,
-    SpecializedMeshPipelineError, SpecializedMeshPipelines, UnpreparedBindGroup, VertexAttribute,
+    AsBindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
+    BufferInitDescriptor, BufferUsages, OwnedBindingResource, RenderPipelineDescriptor, ShaderRef,
+    ShaderType, SpecializedMeshPipelineError, SpecializedMeshPipelines, VertexAttribute,
     VertexBufferLayout, VertexFormat, VertexStepMode,
 };
 use bevy::render::renderer::RenderDevice;
-use bevy::render::texture::FallbackImage;
 use bevy::render::{Extract, RenderApp, RenderSet};
 use bevy::utils::{HashMap, HashSet};
 

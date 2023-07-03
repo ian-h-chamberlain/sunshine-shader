@@ -13,10 +13,8 @@ use inline_tweak::tweak;
 mod bubbles;
 mod noisy;
 
-use bubbles::BubblesMaterial;
-use noisy::NoisyVertsMaterial;
-
-use self::bubbles::BubblesMaterialPlugin;
+use self::bubbles::{BubblesMaterial, BubblesMaterialPlugin};
+use self::noisy::NoisyVertsMaterial;
 
 fn main() {
     let mut app = App::new();
@@ -202,7 +200,7 @@ fn set_custom_material(
             log::debug!("First several positions:\n{colors}");
 
             let Some(bubble_mat) = materials.bubbles.get(&standard_mat.id()) else { continue };
-            let Some(noisy_mat) = materials.noisy.get(&standard_mat.id()) else { continue };
+            let Some(_noisy_mat) = materials.noisy.get(&standard_mat.id()) else { continue };
 
             log::debug!("updating {ent:?} material to {bubble_mat:?}");
 

@@ -3,23 +3,20 @@
 
 use bevy::core_pipeline::core_3d::Transparent3d;
 use bevy::ecs::query::ROQueryItem;
-use bevy::ecs::system::{lifetimeless::*, SystemParamItem};
+use bevy::ecs::system::lifetimeless::*;
+use bevy::ecs::system::SystemParamItem;
 use bevy::pbr::{
-    MaterialPipeline, MaterialPipelineKey, MeshPipeline, MeshPipelineKey, MeshUniform,
-    RenderMaterials, SetMaterialBindGroup, SetMeshBindGroup, SetMeshViewBindGroup,
+    MaterialPipeline, MaterialPipelineKey, MeshPipelineKey, MeshUniform, RenderMaterials,
+    SetMaterialBindGroup, SetMeshBindGroup, SetMeshViewBindGroup,
 };
-use bevy::render::extract_component::DynamicUniformIndex;
-use bevy::render::mesh::{GpuBufferInfo, MeshVertexBufferLayout};
+use bevy::prelude::*;
+use bevy::render::mesh::GpuBufferInfo;
 use bevy::render::render_asset::*;
 use bevy::render::render_phase::*;
 use bevy::render::render_resource::{
-    AsBindGroup, BindGroupDescriptor, BindGroupEntry, OwnedBindingResource, PipelineCache,
-    RenderPipelineDescriptor, SpecializedMeshPipeline, SpecializedMeshPipelineError,
-    SpecializedMeshPipelines,
+    OwnedBindingResource, PipelineCache, SpecializedMeshPipelines,
 };
-use bevy::render::renderer::RenderDevice;
 use bevy::render::view::ExtractedView;
-use bevy::{log, prelude::*};
 use inline_tweak::tweak;
 
 use super::BubblesMaterial;
